@@ -54,8 +54,9 @@ export default function TopBar({ onOpenChat }: { onOpenChat: () => void }) {
       aria-label="System top panel"
     >
       <div className="flex items-center gap-3">
-        <span className="text-sm font-medium">Activities</span>
+        {/* <span className="text-sm font-medium">Activities</span> */}
         <span className="text-sm text-[var(--subtle)]">Portfolio OS</span>
+        <span className="text-sm italic text-[var(--subtle)]">by Niskarsh</span>
       </div>
 
       <div className="text-sm">{time}</div>
