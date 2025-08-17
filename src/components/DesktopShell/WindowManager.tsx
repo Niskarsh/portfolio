@@ -15,28 +15,44 @@ export default function WindowManager(){
   const [wins,setWins]=useState<Win[]>([])
   const [zTop,setZTop]=useState(1)
 
+  const bumpZ = () => setZTop(z => z + 1)
+
   const spawn=(kind:Kind)=>{
     const title={projects:'Projects',work:'Work Experience',about:'About Me'}[kind]
-    const w:Win={id:_id++,kind,title,z:zTop+1,minimized:false,maximized:false}
-    setZTop(zTop+1); setWins(ws=>[...ws,w])
+    setWins(ws => {
+      const zNew = (zTop + 1)
+      setZTop(zNew)
+      return [...ws, {id:_id++,kind,title,z:zNew,minimized:false,maximized:false}]
+    })
   }
-  const focus=(id:number)=>{setZTop(zTop+1); setWins(ws=>ws.map(w=>w.id===id?{...w,z:zTop+1}:w))}
+  const focus=(id:number)=>{
+    setZTop(z => {
+      const zNew = z + 1
+      setWins(ws => ws.map(w=>w.id===id?{...w,z:zNew}:w))
+      return zNew
+    })
+  }
   const close=(id:number)=>setWins(ws=>ws.filter(w=>w.id!==id))
   const minimize=(id:number)=>setWins(ws=>ws.map(w=>w.id===id?{...w,minimized:true,maximized:false}:w))
   const maximize=(id:number)=>setWins(ws=>ws.map(w=>w.id===id?{...w,maximized:!w.maximized,minimized:false}:w))
 
-  // Dock click: restore latest minimized, else focus existing, else spawn
+  // Dock click: restore one minimized (if any) → else focus existing → else spawn
   const onDockClick=(kind:Kind)=>{
-    const minimized = wins.filter(w=>w.kind===kind && w.minimized).sort((a,b)=>b.z-a.z)
-    if(minimized.length){
-      const id=minimized[0].id
-      setWins(ws=>ws.map(w=>w.id===id?{...w,minimized:false}:w))
-      focus(id)
-      return
-    }
-    const existing = wins.filter(w=>w.kind===kind && !w.minimized).sort((a,b)=>b.z-a.z)
-    if(existing.length){ focus(existing[0].id); return }
-    spawn(kind)
+    setWins(ws=>{
+      const minimized = ws.filter(w=>w.kind===kind && w.minimized).sort((a,b)=>b.z-a.z)
+      if(minimized.length){
+        const id = minimized[0].id
+        const zNew = zTop + 1
+        setZTop(zNew)
+        return ws.map(w=>w.id===id?{...w,minimized:false,z:zNew}:w)
+      }
+      const existing = ws.filter(w=>w.kind===kind && !w.minimized).sort((a,b)=>b.z-a.z)
+      if(existing.length){ focus(existing[0].id); return ws }
+      // spawn
+      const zNew = zTop + 1
+      const title={projects:'Projects',work:'Work Experience',about:'About Me'}[kind]
+      return [...ws,{id:_id++,kind,title,z:zNew,minimized:false,maximized:false}]
+    })
   }
 
   const counts: Record<Kind, number> = useMemo(() => ({
@@ -53,7 +69,7 @@ export default function WindowManager(){
       onMinimize:()=>minimize(w.id),
       onMaximize:()=>maximize(w.id),
       z:w.z,title:w.title,maximized:w.maximized,minimized:w.minimized,icon:icon(w.kind),
-      dockTargetId:`dock-btn-${w.kind}`,  // <-- important for minimize animation target
+      dockTargetId:`dock-btn-${w.kind}`,
     }
     switch(w.kind){
       case 'projects': return <Window key={w.id} {...common}><Projects username={process.env.NEXT_PUBLIC_GITHUB_USERNAME||'octocat'}/></Window>
