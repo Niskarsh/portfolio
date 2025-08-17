@@ -1,91 +1,122 @@
 'use client'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Rnd, RndDragCallback, RndResizeCallback, RndDragStartCallback } from 'react-rnd'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Rnd, RndDragCallback, RndResizeCallback } from 'react-rnd'
 
-const TOP_BAR  = 48
-const EDGE_PAD = 16
+const TOP_BAR_FALLBACK = 48
 
 type Size = { w:number, h:number }
 type Pos  = { x:number, y:number }
 
 export default function Window(props:{
+  id:number,
   title:string, z:number, onFocus:()=>void,
   onClose?:()=>void, onMinimize?:()=>void, onRestore?:()=>void, onMaximize?:()=>void,
   default?:{x:number,y:number,w:number,h:number},
   maximized?:boolean, minimized?:boolean,
   icon?:React.ReactNode, children:React.ReactNode,
   dockTargetId: string,
+  registerMinimizer: (id:number, fn:(dockEl:HTMLElement)=>void)=>void
 }) {
-  const { title, children, onClose, onFocus, onMinimize, onMaximize, z, icon, dockTargetId } = props
+  const {
+    id, title, children, onClose, onFocus,
+    onMinimize, onMaximize, z, icon,
+    dockTargetId, registerMinimizer
+  } = props
+
   const def = props.default ?? { x: 220, y: 160, w: 880, h: 620 }
 
   const [pos,  setPos]  = useState<Pos>({ x: def.x, y: def.y })
   const [size, setSize] = useState<Size>({ w: def.w, h: def.h })
   const [maxed, setMaxed] = useState<boolean>(!!props.maximized)
   const [minimized, setMinimized] = useState<boolean>(!!props.minimized)
-  const [minimizing, setMinimizing] = useState(false)
 
-  // NEW: play scale-in for both spawn and restore
+  // animation flags
   const [spawning, setSpawning]   = useState(true)
   const [restoring, setRestoring] = useState(false)
-  const prevMinRef = useRef(minimized)
+  const [animate, setAnimate]     = useState(false)
+  const [dragging, setDragging]   = useState(false)
 
-  const [animate, setAnimate] = useState(false)
-  const [dragging, setDragging] = useState(false)
+  const prevMinRef  = useRef(minimized)
+  const rndRef      = useRef<Rnd>(null)
+  const outerRef    = useRef<HTMLElement | null>(null)
+  const frameRef    = useRef<HTMLDivElement | null>(null)
+  const minAnimRef  = useRef<Animation | null>(null)
+  const normalRef   = useRef<{ pos:Pos, size:Size }>({ pos:{...pos}, size:{...size} })
 
-  const rndRef = useRef<Rnd>(null)
-  const selfElRef = useRef<HTMLElement | null>(null)
-  const normalRef = useRef<{ pos:Pos, size:Size }>({ pos:{...pos}, size:{...size} })
+  // ---- helpers --------------------------------------------------------------
+  const getTopBarHeight = () =>
+    document.getElementById('topbar')?.offsetHeight ?? TOP_BAR_FALLBACK
+
+  const getViewport = () => {
+    const vh = (window.visualViewport?.height ?? document.documentElement.clientHeight)
+    const vw = (window.visualViewport?.width  ?? document.documentElement.clientWidth)
+    return { vw, vh }
+  }
+
+  const applyFullBleed = () => {
+    const { vh, vw } = getViewport()
+    const bar = getTopBarHeight()
+    setPos({ x: 0, y: bar })
+    setSize({ w: vw, h: Math.max(260, vh - bar) })
+  }
 
   useEffect(()=> setMinimized(!!props.minimized), [props.minimized])
-  useEffect(()=> setMaxed(!!props.maximized), [props.maximized])
+  useEffect(()=> setMaxed(!!props.maximized),     [props.maximized])
 
-  useEffect(() => {
+  // capture outer node for geometry
+  useLayoutEffect(() => {
     const el =
       (rndRef.current as any)?.resizableElement?.current as HTMLElement
       || (rndRef.current as any)?.getSelfElement?.() as HTMLElement
-    selfElRef.current = el ?? null
+    outerRef.current = el ?? null
   }, [])
 
-  // center on first mount
-  useEffect(() => {
-    const W = window.innerWidth, H = window.innerHeight
-    const x = Math.max(EDGE_PAD, Math.round((W - size.w)/2))
-    const y = Math.max(TOP_BAR, Math.round((H - size.h)/2))
-    setPos({ x, y })
+  // center on first open
+  useLayoutEffect(() => {
+    const { vw, vh } = getViewport()
+    const bar = getTopBarHeight()
+    setPos({
+      x: Math.max(16, Math.round((vw - size.w)/2)),
+      y: Math.max(bar, Math.round((vh - size.h)/2)),
+    })
     const t = setTimeout(()=>setSpawning(false), 420)
     return ()=>clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // NEW: when coming back from minimized → play same spawn animation
+  // trigger restore anim when minimized -> false
   useEffect(() => {
-    if (prevMinRef.current && !minimized) {
-      setRestoring(true)
-      const t = setTimeout(() => setRestoring(false), 380)
-      return () => clearTimeout(t)
-    }
+    if (prevMinRef.current && !minimized) setRestoring(true)
     prevMinRef.current = minimized
   }, [minimized])
 
-  const maxTarget = useMemo(() => {
-    const W = window.innerWidth, H = window.innerHeight
-    return { x: EDGE_PAD, y: TOP_BAR, w: Math.max(360, W - EDGE_PAD*2), h: Math.max(260, H - TOP_BAR - EDGE_PAD) }
-  }, [])
+  // clear WAAPI residue before restore
+  useEffect(() => {
+    if (!restoring) return
+    const frame = frameRef.current
+    if (!frame) return
+    frame.getAnimations().forEach(a => a.cancel())
+    frame.style.transform = ''
+    frame.style.opacity   = ''
+    void frame.offsetWidth
+  }, [restoring])
 
+  // keep maximized responsive (resize, zoom, soft-keyboard, etc.)
   useEffect(() => {
     if (!maxed) return
-    const onR = () => {
-      const W = window.innerWidth, H = window.innerHeight
-      setPos({ x: EDGE_PAD, y: TOP_BAR })
-      setSize({ w: Math.max(360, W - EDGE_PAD*2), h: Math.max(260, H - TOP_BAR - EDGE_PAD) })
-    }
+    const onR = () => applyFullBleed()
     onR()
     window.addEventListener('resize', onR)
-    return () => window.removeEventListener('resize', onR)
+    window.visualViewport?.addEventListener('resize', onR)
+    window.visualViewport?.addEventListener('scroll', onR)
+    return () => {
+      window.removeEventListener('resize', onR)
+      window.visualViewport?.removeEventListener('resize', onR)
+      window.visualViewport?.removeEventListener('scroll', onR)
+    }
   }, [maxed])
 
-  const onDragStart: RndDragStartCallback = () => setDragging(true)
+  // drag/resize
   const onDragStop: RndDragCallback = (_e, d) => {
     setDragging(false)
     setPos({ x: d.x, y: d.y })
@@ -98,19 +129,47 @@ export default function Window(props:{
     if (!maxed) normalRef.current = { size: s, pos: p }
   }
 
-  // minimize to dock icon center
-  const handleMinimize = () => {
-    const winEl = selfElRef.current
-    const iconEl = document.getElementById(dockTargetId)
-    if (winEl && iconEl) {
-      const wr = winEl.getBoundingClientRect()
-      const ir = iconEl.getBoundingClientRect()
-      winEl.style.setProperty('--min-x', `${(ir.left+ir.width/2)  - (wr.left+wr.width/2) }px`)
-      winEl.style.setProperty('--min-y', `${(ir.top +ir.height/2) - (wr.top +wr.height/2)}px`)
-    }
-    setMinimizing(true)
+  // ---- minimize to dock (single vector) ------------------------------------
+  const runMinimize = (dockEl: HTMLElement) => {
+    const outer = outerRef.current
+    const frame = frameRef.current
+    if (!outer || !frame) return
+
+    frame.getAnimations().forEach(a => a.cancel())
+    minAnimRef.current?.cancel()
+
+    const wr = outer.getBoundingClientRect()
+    const ir = dockEl.getBoundingClientRect()
+    const dx = (ir.left + ir.width/2) - (wr.left + wr.width/2)
+    const dy = (ir.top  + ir.height/2) - (wr.top  + wr.height/2)
+
+    setRestoring(false); setSpawning(false)
+
+    minAnimRef.current = frame.animate(
+      [
+        { transform: 'translate3d(0,0,0)',               opacity: 1 },
+        { transform: `translate3d(${dx}px, ${dy}px, 0)`, opacity: 0 }
+      ],
+      { duration: 260, easing: 'cubic-bezier(.25,.8,.25,1)', fill: 'forwards' }
+    )
+    minAnimRef.current.finished.then(() => {
+      setMinimized(true)
+      onMinimize?.()
+    }).catch(()=>{})
   }
 
+  // dock trigger
+  useEffect(() => {
+    registerMinimizer(id, (dockEl: HTMLElement) => runMinimize(dockEl))
+  }, [id, registerMinimizer])
+
+  // header minimize
+  const handleMinimize = () => {
+    const iconEl = document.getElementById(dockTargetId) as HTMLElement | null
+    if (iconEl) runMinimize(iconEl)
+  }
+
+  // toggle maximize (full-bleed under top bar)
   const handleMaximize = () => {
     setAnimate(true)
     if (maxed) {
@@ -118,44 +177,42 @@ export default function Window(props:{
       setMaxed(false); setPos({ ...p }); setSize({ ...s })
     } else {
       normalRef.current = { pos: { ...pos }, size: { ...size } }
-      setMaxed(true); setPos({ x: maxTarget.x, y: maxTarget.y }); setSize({ w: maxTarget.w, h: maxTarget.h })
+      setMaxed(true)
+      applyFullBleed()
     }
-    onMaximize?.()
-    setTimeout(() => setAnimate(false), 420)
+    onMaximize?.(); setTimeout(() => setAnimate(false), 420)
   }
-
-  const outerStyle: React.CSSProperties = {
-    zIndex: z,
-    position: 'fixed',
-    display: minimized && !minimizing ? 'none' : undefined, // keep mounted ⇒ exact restore pos/size
-  }
-  const outerClasses = [
-    'yaru-window','overflow-hidden',
-    animate ? 'win-animate' : '',
-    minimizing ? 'win-minimizing' : ''
-  ].join(' ').trim()
 
   return (
     <Rnd
       ref={rndRef}
-      position={maxed ? { x: maxTarget.x, y: maxTarget.y } : pos}
-      size={maxed ? { width: maxTarget.w, height: maxTarget.h } : { width: size.w, height: size.h }}
+      position={{ x: pos.x, y: pos.y }}
+      size={{ width: size.w, height: size.h }}
       bounds="window"
       dragHandleClassName="win-drag"
       enableResizing={!maxed}
       disableDragging={maxed}
-      onDragStart={onDragStart}
+      onDragStart={() => setDragging(true)}
       onDragStop={onDragStop}
       onResizeStop={onResizeStop}
-      className={outerClasses}
-      style={outerStyle}
+      className={`yaru-window ${animate ? 'win-animate' : ''}`}
+      style={{ zIndex: z, display: minimized ? 'none' : undefined }}
       onMouseDown={onFocus}
-      onAnimationEnd={() => {
-        if (minimizing) { setMinimizing(false); setMinimized(true); onMinimize?.() }
-      }}
     >
-      {/* inner wrapper so scale-in doesn't fight Rnd's translate */}
-      <div className={`win-shell ${(spawning || restoring) ? 'win-spawn' : ''}`}>
+      <div
+        ref={frameRef}
+        className={[
+          'win-frame',
+          spawning  ? 'win-spawn'   : '',
+          restoring ? 'win-restore' : '',
+        ].join(' ')}
+        onAnimationEnd={(e) => {
+          if (e.animationName === 'winSpawn') {
+            if (spawning)  setSpawning(false)
+            if (restoring) setRestoring(false)
+          }
+        }}
+      >
         <div
           className={`window-header win-drag ${dragging ? 'cursor-grabbing' : 'cursor-default'}`}
           onMouseDown={() => setDragging(true)}

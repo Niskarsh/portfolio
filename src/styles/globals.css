@@ -4,27 +4,47 @@
 
 /* ---- theme variables (GitHub-dark + Ubuntu accent) ---- */
 :root{
-  --bg:#0d1117;
-  --panel:#161b22;
-  --panel-2:#1f242d;
-  --ink:#c9d1d9;
-  --subtle:#8b949e;
-  --border:#30363d;
-  --hover:#1f242d;
-  --brand:#E95420;
+  --bg:#0d1117; --panel:#161b22; --panel-2:#1f242d;
+  --ink:#c9d1d9; --subtle:#8b949e; --border:#30363d;
+  --hover:#1f242d; --brand:#E95420;
 }
 :root[data-theme='light']{
   --bg:#f6f8fa; --panel:#ffffff; --panel-2:#f6f8fa;
-  --ink:#1f2328; --subtle:#57606a; --border:#d0d7de; --hover:#f3f4f6; --brand:#E95420;
+  --ink:#1f2328; --subtle:#57606a; --border:#d0d7de;
+  --hover:#f3f4f6; --brand:#E95420;
 }
 html,body{height:100%; background:var(--bg); color:var(--ink);}
+body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 
-/* ---- window chrome ---- */
-.yaru-window{border-radius:14px; background:var(--panel); border:1px solid var(--border); box-shadow:0 16px 50px rgba(0,0,0,0.45);}
-.window-header{display:flex; align-items:center; justify-content:space-between; padding:0.5rem 0.75rem; user-select:none; background:linear-gradient(180deg,rgba(255,255,255,0.05),rgba(0,0,0,0.25)); border-bottom:1px solid var(--border); border-top-left-radius:14px; border-top-right-radius:14px;}
-.window-title{font-size:.875rem; font-weight:600; display:flex; align-items:center; gap:.5rem; color:var(--ink);}
-.window-controls{display:flex; gap:.5rem; align-items:center;}
-.btn-ctl{width:18px;height:18px;border-radius:9999px;display:grid;place-items:center;color:#fff;font-size:12px;line-height:12px;cursor:pointer;box-shadow:inset 0 -1px 0 rgba(0,0,0,0.25);}
+/* ── RND OUTER: position only (no visuals) ─────────────────────────────────── */
+.yaru-window{
+  /* used by inner animation */
+  --min-x:0px; --min-y:0px;
+  position:fixed;
+  background:transparent; border:0; box-shadow:none;
+  overflow:visible;
+}
+
+/* ── INNER FRAME: chrome + all animations ──────────────────────────────────── */
+.win-frame{
+  border-radius:14px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  box-shadow:0 16px 50px rgba(0,0,0,0.45);
+  overflow:hidden;
+  will-change:transform,opacity;
+}
+
+/* window header + controls */
+.window-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0.5rem 0.75rem; user-select:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.25));
+  border-bottom:1px solid var(--border);
+}
+.window-title{font-size:.875rem;font-weight:600;display:flex;align-items:center;gap:.5rem;color:var(--ink)}
+.window-controls{display:flex;gap:.5rem;align-items:center}
+.btn-ctl{width:18px;height:18px;border-radius:9999px;display:grid;place-items:center;color:#fff;font-size:12px;line-height:12px;cursor:pointer;box-shadow:inset 0 -1px 0 rgba(0,0,0,.25)}
 .btn-close{background:#ff5f56}
 .btn-min{background:#ffbd2e;color:#111}
 .btn-max{background:#27c93f;color:#0c3517}
@@ -34,8 +54,7 @@ html,body{height:100%; background:var(--bg); color:var(--ink);}
 *::-webkit-scrollbar{width:10px;height:10px}
 *::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
 
-
-/* smoother maximize/restore */
+/* ── maximize/restore smoothing (outer) ────────────────────────────────────── */
 .win-animate{
   transition:
     transform 420ms cubic-bezier(.2,.8,.2,1),
@@ -44,28 +63,34 @@ html,body{height:100%; background:var(--bg); color:var(--ink);}
     opacity   420ms ease;
 }
 
-/* minimize to the targeted dock icon center (Window.tsx sets --min-x/--min-y) */
-@keyframes minimizeToDockIcon{
-  0%   { transform: translate(0,0) scale(1);   opacity: 1; }
-  100% { transform: translate(var(--min-x,0px), var(--min-y,60vh)) scale(.80); opacity: 0; }
+/* ── minimize: simple translate-to-dock + fade (inner .win-frame only) ─────── */
+.win-frame.win-minimizing{
+  pointer-events:none;
+  animation: winMinimizeToDock 260ms cubic-bezier(.25,.8,.25,1) forwards;
+  transform-origin:center;
 }
-.win-minimizing{
-  animation: minimizeToDockIcon 480ms cubic-bezier(0.22,1,0.36,1) forwards;
+@keyframes winMinimizeToDock{
+  0%   { transform: translate3d(0,0,0); opacity: 1; }
+  100% { transform: translate3d(var(--min-x,0px), var(--min-y,0px), 0); opacity: 0; }
 }
 
-/* --- dock hover 'magnification' (simple pop) --- */
-.dock-item{ transform: translateZ(0) scale(1); transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
-.dock-item:hover{ transform: translateZ(0) scale(1.12); } /* mac-like pop */  /* Apple Dock has magnification option */ 
-/* Dock button transforms are applied by JS every frame */
-.dock-button{ transform-origin: bottom center; will-change: transform; }
-
-/* Spawn from center (inner shell only, so it doesn't fight Rnd's translate) */
-.win-shell { height: 100%; }
-.win-spawn {
-  animation: winSpawn 380ms cubic-bezier(.2,.8,.2,1);
-  transform-origin: center; /* MDN: transform-origin controls the pivot for transform. */
+/* ── open/restore: scale-in from center (inner) ────────────────────────────── */
+.win-frame.win-spawn,
+.win-frame.win-restore{
+  animation:winSpawn 380ms cubic-bezier(.2,.8,.2,1);
+  transform-origin:center;
 }
-@keyframes winSpawn {
-  0%   { transform: scale(0); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+@keyframes winSpawn{
+  0%   { transform:scale(0); opacity:0; }
+  100% { transform:scale(1); opacity:1; }
+}
+
+/* ── dock styles ───────────────────────────────────────────────────────────── */
+.dock-item{ transform:translateZ(0) scale(1); transition:transform 180ms cubic-bezier(.2,.8,.2,1); }
+.dock-item:hover{ transform:translateZ(0) scale(1.12); }
+.dock-button{ transform-origin:bottom center; will-change:transform; }
+
+/* ── motion accessibility ──────────────────────────────────────────────────── */
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
 }
