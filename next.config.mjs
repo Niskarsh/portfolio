@@ -1,2 +1,4 @@
-const nextConfig = { experimental: { reactCompiler: false } };
-export default nextConfig;
+export default {
+    experimental: { reactCompiler: false }
+  }
+  
