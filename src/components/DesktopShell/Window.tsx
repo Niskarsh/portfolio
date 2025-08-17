@@ -2,10 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Rnd, RndDragCallback, RndResizeCallback, RndDragStartCallback } from 'react-rnd'
 
-/** Layout chrome (keep in sync with TopBar + Dock) */
-const TOP_BAR = 48           // px
-const DOCK_H  = 110          // px (bottom dock footprint incl. shadow)
-const EDGE_PAD = 16          // px
+const TOP_BAR  = 48   // px
+const EDGE_PAD = 16   // px
 
 type Size = { w:number, h:number }
 type Pos  = { x:number, y:number }
@@ -16,19 +14,14 @@ export default function Window(props:{
   default?:{x:number,y:number,w:number,h:number},
   maximized?:boolean, minimized?:boolean,
   icon?:React.ReactNode, children:React.ReactNode,
-  /** id of the dock button this window should minimize toward, e.g. 'dock-btn-projects' */
-  dockTargetId: string,
+  dockTargetId: string,                    // e.g. dock-btn-projects
 }) {
   const { title, children, onClose, onFocus, onMinimize, onMaximize, z, icon, dockTargetId } = props
   const def = props.default ?? { x: 220, y: 160, w: 880, h: 620 }
 
-  // live geometry
   const [pos,  setPos]  = useState<Pos>({ x: def.x, y: def.y })
   const [size, setSize] = useState<Size>({ w: def.w, h: def.h })
-
-  // saved geometry for restore after maximize
   const normalRef = useRef<{ pos:Pos, size:Size }>({ pos:{...pos}, size:{...size} })
-
   const [maxed, setMaxed] = useState<boolean>(!!props.maximized)
   const [minimized, setMinimized] = useState<boolean>(!!props.minimized)
   const [minimizing, setMinimizing] = useState(false)
@@ -36,26 +29,29 @@ export default function Window(props:{
   const [dragging, setDragging] = useState(false)
 
   const rndRef = useRef<Rnd>(null)
+  const selfElRef = useRef<HTMLElement | null>(null)
 
-  // compute maximize target area (respect top bar + bottom dock)
+  // capture our real DOM node once mounted
+  useEffect(() => {
+    const el =
+      (rndRef.current as any)?.resizableElement?.current as HTMLElement
+      || (rndRef.current as any)?.getSelfElement?.() as HTMLElement
+    selfElRef.current = el ?? null
+  }, [])
+
+  // maximize target: fill to bottom (dock floats above)
   const maxTarget = useMemo(() => {
     const W = typeof window !== 'undefined' ? window.innerWidth  : 1280
     const H = typeof window !== 'undefined' ? window.innerHeight : 800
-    return {
-      x: EDGE_PAD,
-      y: TOP_BAR,
-      w: Math.max(360, W - EDGE_PAD * 2),
-      h: Math.max(260, H - TOP_BAR - DOCK_H - EDGE_PAD)
-    }
+    return { x: EDGE_PAD, y: TOP_BAR, w: Math.max(360, W - EDGE_PAD * 2), h: Math.max(260, H - TOP_BAR - EDGE_PAD) }
   }, [])
 
-  // keep maximized fit on viewport resize
   useEffect(() => {
     if (!maxed) return
     const onResize = () => {
       const W = window.innerWidth, H = window.innerHeight
       setPos({ x: EDGE_PAD, y: TOP_BAR })
-      setSize({ w: Math.max(360, W - EDGE_PAD*2), h: Math.max(260, H - TOP_BAR - DOCK_H - EDGE_PAD) })
+      setSize({ w: Math.max(360, W - EDGE_PAD*2), h: Math.max(260, H - TOP_BAR - EDGE_PAD) })
     }
     onResize()
     window.addEventListener('resize', onResize)
@@ -70,7 +66,6 @@ export default function Window(props:{
     setPos({ x: d.x, y: d.y })
     if (!maxed) normalRef.current.pos = { x: d.x, y: d.y }
   }
-
   const onResizeStop: RndResizeCallback = (_e, _dir, ref, _delta, position) => {
     const s = { w: ref.offsetWidth, h: ref.offsetHeight }
     const p = { x: position.x, y: position.y }
@@ -78,14 +73,9 @@ export default function Window(props:{
     if (!maxed) normalRef.current = { size: s, pos: p }
   }
 
-  // Calculate a minimize vector toward the dock icon center and animate there
+  // Minimize to the exact dock icon center
   const handleMinimize = () => {
-    const winEl =
-      // try known internal refs from react-rnd; fall back to class selector
-      ((rndRef.current as any)?.resizableElement?.current as HTMLElement) ||
-      ((rndRef.current as any)?.getSelfElement?.() as HTMLElement) ||
-      document.querySelector('.yaru-window:last-of-type') as HTMLElement | null
-
+    const winEl = selfElRef.current
     const iconEl = document.getElementById(dockTargetId)
     if (winEl && iconEl) {
       const wr = winEl.getBoundingClientRect()
@@ -95,33 +85,25 @@ export default function Window(props:{
       winEl.style.setProperty('--min-x', `${dx}px`)
       winEl.style.setProperty('--min-y', `${dy}px`)
     }
-    setMinimizing(true)   // CSS will run keyframes using the vars; onAnimationEnd we actually hide
+    setMinimizing(true)
   }
 
-  // Toggle maximize ↔ restore (restores to last non-maxed geometry)
+  // Toggle maximize ⇄ restore (restore to LAST unmaxed geometry)
   const handleMaximize = () => {
-    setAnimate(true) // enable smooth size/pos transition
+    setAnimate(true)
     if (maxed) {
       const { pos: p, size: s } = normalRef.current
-      setMaxed(false)
-      setPos({ ...p }); setSize({ ...s })
+      setMaxed(false); setPos({ ...p }); setSize({ ...s })
     } else {
       normalRef.current = { pos: { ...pos }, size: { ...size } }
-      setMaxed(true)
-      setPos({ x: maxTarget.x, y: maxTarget.y })
-      setSize({ w: maxTarget.w, h: maxTarget.h })
+      setMaxed(true); setPos({ x: maxTarget.x, y: maxTarget.y }); setSize({ w: maxTarget.w, h: maxTarget.h })
     }
     onMaximize?.()
-    // drop the animate class after the transition completes
-    setTimeout(() => setAnimate(false), 380)
+    setTimeout(() => setAnimate(false), 420)
   }
 
   const style = { zIndex: z, position: 'fixed' as const }
-  const classes = [
-    'yaru-window','overflow-hidden',
-    animate ? 'win-animate' : '',
-    minimizing ? 'win-minimizing' : '',
-  ].join(' ').trim()
+  const classes = ['yaru-window','overflow-hidden', animate ? 'win-animate' : '', minimizing ? 'win-minimizing' : ''].join(' ').trim()
 
   return (
     <Rnd
@@ -139,11 +121,7 @@ export default function Window(props:{
       style={style}
       onMouseDown={onFocus}
       onAnimationEnd={() => {
-        if (minimizing) {
-          setMinimizing(false)
-          setMinimized(true)
-          onMinimize?.()
-        }
+        if (minimizing) { setMinimizing(false); setMinimized(true); onMinimize?.() }
       }}
     >
       <div
@@ -159,7 +137,11 @@ export default function Window(props:{
         <div className="window-title">{icon}<span>{title}</span></div>
         <div className="w-16" />
       </div>
-      <div className="p-4 h-[calc(100%-44px)] overflow-auto">{children}</div>
+      {/* inner holder just to be safe for getBoundingClientRect() */}
+      <div ref={(el)=>{ /* capture outer element if needed */ if(el && !selfElRef.current) selfElRef.current = el.parentElement as HTMLElement }}
+           className="p-4 h-[calc(100%-44px)] overflow-auto">
+        {children}
+      </div>
     </Rnd>
   )
 }
