@@ -12,9 +12,9 @@ export default function Page(){
       <TopBar onOpenChat={() => wm.onDockClick('about')} />
       <Dock
         counts={wm.counts}
-        spawn={() => {}}
+        // spawn={() => {}}
         onDockClick={wm.onDockClick}
-        mediumUrl={process.env.NEXT_PUBLIC_MEDIUM_URL || 'https://medium.com/@your-handle'}
+        // mediumUrl={process.env.NEXT_PUBLIC_MEDIUM_URL || 'https://medium.com/@your-handle'}
       />
       {wm.wins.map(w => wm.render(w))}
     </main>
