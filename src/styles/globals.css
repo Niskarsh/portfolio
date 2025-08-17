@@ -58,3 +58,14 @@ html,body{height:100%; background:var(--bg); color:var(--ink);}
 .dock-item:hover{ transform: translateZ(0) scale(1.12); } /* mac-like pop */  /* Apple Dock has magnification option */ 
 /* Dock button transforms are applied by JS every frame */
 .dock-button{ transform-origin: bottom center; will-change: transform; }
+
+/* Spawn from center (inner shell only, so it doesn't fight Rnd's translate) */
+.win-shell { height: 100%; }
+.win-spawn {
+  animation: winSpawn 380ms cubic-bezier(.2,.8,.2,1);
+  transform-origin: center; /* MDN: transform-origin controls the pivot for transform. */
+}
+@keyframes winSpawn {
+  0%   { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
