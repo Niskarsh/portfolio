@@ -1,11 +1,12 @@
 'use client'
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useReducer, useRef, useState } from 'react'
 import { Rnd, RndDragCallback, RndResizeCallback } from 'react-rnd'
-
-const TOP_BAR_FALLBACK = 48
 
 type Size = { w:number, h:number }
 type Pos  = { x:number, y:number }
+
+const EDGE_PAD = 16
+const TOPBAR_FALLBACK = 48
 
 export default function Window(props:{
   id:number,
@@ -25,87 +26,103 @@ export default function Window(props:{
 
   const def = props.default ?? { x: 220, y: 160, w: 880, h: 620 }
 
+  // geometry state (these actually render)
   const [pos,  setPos]  = useState<Pos>({ x: def.x, y: def.y })
   const [size, setSize] = useState<Size>({ w: def.w, h: def.h })
-  const [maxed, setMaxed] = useState<boolean>(!!props.maximized)
   const [minimized, setMinimized] = useState<boolean>(!!props.minimized)
 
-  // animation flags
-  const [spawning, setSpawning]   = useState(true)
+  // refs (source of truth)
+  const maxedRef = useRef<boolean>(!!props.maximized)        // <- requested: ref, not state
+  const prevMinRef = useRef(minimized)
+  const normalRef  = useRef<{ pos:Pos, size:Size }>({ pos:{...pos}, size:{...size} })
+
+  // animation bits
+  const [spawning, setSpawning] = useState(true)
   const [restoring, setRestoring] = useState(false)
-  const [animate, setAnimate]     = useState(false)
-  const [dragging, setDragging]   = useState(false)
+  const [animate, setAnimate] = useState(false)
+  const [dragging, setDragging] = useState(false)
 
-  const prevMinRef  = useRef(minimized)
-  const rndRef      = useRef<Rnd>(null)
-  const outerRef    = useRef<HTMLElement | null>(null)
-  const frameRef    = useRef<HTMLDivElement | null>(null)
-  const minAnimRef  = useRef<Animation | null>(null)
-  const normalRef   = useRef<{ pos:Pos, size:Size }>({ pos:{...pos}, size:{...size} })
+  // force re-render when we flip maxedRef so RND props update
+  const [, force] = useReducer((x:number)=>x+1, 0)
 
-  // ---- helpers --------------------------------------------------------------
-  const getTopBarHeight = () =>
-    document.getElementById('topbar')?.offsetHeight ?? TOP_BAR_FALLBACK
+  // dom refs
+  const rndRef   = useRef<Rnd>(null)
+  const outerRef = useRef<HTMLElement | null>(null)     // RND self element (has transform)
+  const frameRef = useRef<HTMLDivElement | null>(null)  // inner visual frame
+  const minAnimRef = useRef<Animation | null>(null)
 
-  const getViewport = () => {
-    const vh = (window.visualViewport?.height ?? document.documentElement.clientHeight)
-    const vw = (window.visualViewport?.width  ?? document.documentElement.clientWidth)
-    return { vw, vh }
-  }
+  // helpers
+  const getTopbar = () =>
+    parseInt(getComputedStyle(document.documentElement).getPropertyValue('--topbar-h')) ||
+    document.getElementById('topbar')?.offsetHeight ||
+    TOPBAR_FALLBACK
+
+  const getViewport = () => ({
+    vw: (window.visualViewport?.width  ?? document.documentElement.clientWidth),
+    vh: (window.visualViewport?.height ?? document.documentElement.clientHeight),
+  }) // visualViewport avoids mobile UI quirks. :contentReference[oaicite:2]{index=2}
 
   const applyFullBleed = () => {
-    const { vh, vw } = getViewport()
-    const bar = getTopBarHeight()
+    const { vw, vh } = getViewport()
+    const bar = getTopbar()
     setPos({ x: 0, y: bar })
     setSize({ w: vw, h: Math.max(260, vh - bar) })
+    // also make the RND node full-bleed (neutralize transform)
+    outerRef.current?.classList.add('rnd-full')
   }
 
-  useEffect(()=> setMinimized(!!props.minimized), [props.minimized])
-  useEffect(()=> setMaxed(!!props.maximized),     [props.maximized])
+  const removeFullBleed = () => {
+    outerRef.current?.classList.remove('rnd-full')
+  }
 
-  // capture outer node for geometry
+  // capture RND outer node
   useLayoutEffect(() => {
     const el =
       (rndRef.current as any)?.resizableElement?.current as HTMLElement
       || (rndRef.current as any)?.getSelfElement?.() as HTMLElement
     outerRef.current = el ?? null
+    // honor initial maximize from props
+    if (maxedRef.current) {
+      applyFullBleed()
+    }
   }, [])
 
   // center on first open
   useLayoutEffect(() => {
+    if (maxedRef.current) return
     const { vw, vh } = getViewport()
-    const bar = getTopBarHeight()
+    const bar = getTopbar()
     setPos({
-      x: Math.max(16, Math.round((vw - size.w)/2)),
-      y: Math.max(bar, Math.round((vh - size.h)/2)),
+      x: Math.max(EDGE_PAD, Math.round((vw - size.w)/2)),
+      y: Math.max(bar,      Math.round((vh - size.h)/2)),
     })
     const t = setTimeout(()=>setSpawning(false), 420)
     return ()=>clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // trigger restore anim when minimized -> false
+  // sync minimized from props
+  useEffect(()=> setMinimized(!!props.minimized), [props.minimized])
+
+  // detect restore transition (minimized -> false)
   useEffect(() => {
     if (prevMinRef.current && !minimized) setRestoring(true)
     prevMinRef.current = minimized
   }, [minimized])
 
-  // clear WAAPI residue before restore
+  // clean up any WAAPI residue before restore anim
   useEffect(() => {
     if (!restoring) return
     const frame = frameRef.current
     if (!frame) return
     frame.getAnimations().forEach(a => a.cancel())
-    frame.style.transform = ''
-    frame.style.opacity   = ''
+    frame.style.transform = ''; frame.style.opacity = ''
     void frame.offsetWidth
   }, [restoring])
 
-  // keep maximized responsive (resize, zoom, soft-keyboard, etc.)
+  // keep maximized responsive without relying on stale state (checks ref)
   useEffect(() => {
-    if (!maxed) return
-    const onR = () => applyFullBleed()
-    onR()
+    const onR = () => { if (maxedRef.current) applyFullBleed() }
     window.addEventListener('resize', onR)
     window.visualViewport?.addEventListener('resize', onR)
     window.visualViewport?.addEventListener('scroll', onR)
@@ -114,22 +131,22 @@ export default function Window(props:{
       window.visualViewport?.removeEventListener('resize', onR)
       window.visualViewport?.removeEventListener('scroll', onR)
     }
-  }, [maxed])
+  }, [])
 
-  // drag/resize
+  // react-rnd handlers
   const onDragStop: RndDragCallback = (_e, d) => {
     setDragging(false)
     setPos({ x: d.x, y: d.y })
-    if (!maxed) normalRef.current.pos = { x: d.x, y: d.y }
+    if (!maxedRef.current) normalRef.current.pos = { x: d.x, y: d.y }
   }
   const onResizeStop: RndResizeCallback = (_e, _dir, ref, _delta, position) => {
     const s = { w: ref.offsetWidth, h: ref.offsetHeight }
     const p = { x: position.x, y: position.y }
     setSize(s); setPos(p)
-    if (!maxed) normalRef.current = { size: s, pos: p }
+    if (!maxedRef.current) normalRef.current = { size: s, pos: p }
   }
 
-  // ---- minimize to dock (single vector) ------------------------------------
+  // minimize to dock (single vector)
   const runMinimize = (dockEl: HTMLElement) => {
     const outer = outerRef.current
     const frame = frameRef.current
@@ -143,7 +160,7 @@ export default function Window(props:{
     const dx = (ir.left + ir.width/2) - (wr.left + wr.width/2)
     const dy = (ir.top  + ir.height/2) - (wr.top  + wr.height/2)
 
-    setRestoring(false); setSpawning(false)
+    setSpawning(false); setRestoring(false)
 
     minAnimRef.current = frame.animate(
       [
@@ -158,44 +175,51 @@ export default function Window(props:{
     }).catch(()=>{})
   }
 
-  // dock trigger
   useEffect(() => {
-    registerMinimizer(id, (dockEl: HTMLElement) => runMinimize(dockEl))
-  }, [id, registerMinimizer])
+    props.registerMinimizer(id, (dockEl: HTMLElement) => runMinimize(dockEl))
+  }, [id, props.registerMinimizer])
 
-  // header minimize
   const handleMinimize = () => {
-    const iconEl = document.getElementById(dockTargetId) as HTMLElement | null
-    if (iconEl) runMinimize(iconEl)
+    const el = document.getElementById(props.dockTargetId) as HTMLElement | null
+    if (el) runMinimize(el)
   }
 
-  // toggle maximize (full-bleed under top bar)
-  const handleMaximize = () => {
-    setAnimate(true)
-    if (maxed) {
-      const { pos: p, size: s } = normalRef.current
-      setMaxed(false); setPos({ ...p }); setSize({ ...s })
-    } else {
+  // === ref-based maximize toggle ============================================
+  const setMaximized = (next:boolean, withAnim=true) => {
+    if (maxedRef.current === next) return
+    maxedRef.current = next
+    if (withAnim) { setAnimate(true); setTimeout(()=>setAnimate(false), 420) }
+
+    if (next) {
+      // remember normal size/pos before going full-bleed
       normalRef.current = { pos: { ...pos }, size: { ...size } }
-      setMaxed(true)
       applyFullBleed()
+    } else {
+      removeFullBleed()
+      const { pos: p, size: s } = normalRef.current
+      setPos({ ...p }); setSize({ ...s })
     }
-    onMaximize?.(); setTimeout(() => setAnimate(false), 420)
+    onMaximize?.()
+    force() // re-render so RND props (drag/resize flags) reflect new state
   }
+
+  const handleMaximize = () => setMaximized(!maxedRef.current, true)
 
   return (
+    <div className="win-content">
     <Rnd
       ref={rndRef}
+      // Position/size always driven from state; .rnd-full overrides when maxed
       position={{ x: pos.x, y: pos.y }}
       size={{ width: size.w, height: size.h }}
       bounds="window"
       dragHandleClassName="win-drag"
-      enableResizing={!maxed}
-      disableDragging={maxed}
+      enableResizing={!maxedRef.current}
+      disableDragging={maxedRef.current}
       onDragStart={() => setDragging(true)}
       onDragStop={onDragStop}
       onResizeStop={onResizeStop}
-      className={`yaru-window ${animate ? 'win-animate' : ''}`}
+      className={`yaru-window ${animate ? 'win-animate' : ''} ${maxedRef.current ? 'rnd-full' : ''}`}
       style={{ zIndex: z, display: minimized ? 'none' : undefined }}
       onMouseDown={onFocus}
     >
@@ -231,5 +255,6 @@ export default function Window(props:{
         </div>
       </div>
     </Rnd>
+    </div>
   )
 }

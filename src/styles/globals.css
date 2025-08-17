@@ -7,12 +7,17 @@
   --bg:#0d1117; --panel:#161b22; --panel-2:#1f242d;
   --ink:#c9d1d9; --subtle:#8b949e; --border:#30363d;
   --hover:#1f242d; --brand:#E95420;
+
+  /* layout constants */
+  --topbar-h: 48px;     /* keep in sync with TopBar */
+  --win-header: 44px;   /* window header height */
 }
 :root[data-theme='light']{
   --bg:#f6f8fa; --panel:#ffffff; --panel-2:#f6f8fa;
   --ink:#1f2328; --subtle:#57606a; --border:#d0d7de;
   --hover:#f3f4f6; --brand:#E95420;
 }
+
 html,body{height:100%; background:var(--bg); color:var(--ink);}
 body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 
@@ -23,10 +28,19 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   position:fixed;
   background:transparent; border:0; box-shadow:none;
   overflow:visible;
+  box-sizing:border-box; /* ensure %/100% heights behave predictably */
 }
 
 /* ── INNER FRAME: chrome + all animations ──────────────────────────────────── */
+/* KEY CHANGE: make the visual frame fill the RND height and behave like a
+   header+body column. The content pane is a flex child with min-height:0 so
+   overflow works inside flex. */
 .win-frame{
+  height:100%;                     /* <— fill RND’s explicit height */
+  display:flex;
+  flex-direction:column;
+  box-sizing:border-box;
+
   border-radius:14px;
   background:var(--panel);
   border:1px solid var(--border);
@@ -37,6 +51,8 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 
 /* window header + controls */
 .window-header{
+  flex:0 0 var(--win-header);
+  height:var(--win-header);
   display:flex; align-items:center; justify-content:space-between;
   padding:0.5rem 0.75rem; user-select:none;
   background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(0,0,0,.25));
@@ -48,6 +64,14 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 .btn-close{background:#ff5f56}
 .btn-min{background:#ffbd2e;color:#111}
 .btn-max{background:#27c93f;color:#0c3517}
+
+/* FLEX BODY that actually grows and scrolls */
+.win-content{
+  flex:1 1 auto;
+  min-height:0;                    /* <— critical for flex + overflow */
+  overflow:auto;
+  padding:1rem;
+}
 
 /* nicer scrollbars */
 *{scrollbar-width:thin; scrollbar-color:var(--border) transparent}
@@ -93,4 +117,13 @@ body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 /* ── motion accessibility ──────────────────────────────────────────────────── */
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important;scroll-behavior:auto!important}
+}
+
+/* Full-bleed override for maximized RND windows (optional helper) */
+.rnd-full {
+  position: fixed !important;
+  inset: var(--topbar-h) 0 0 0 !important; /* top right bottom left */
+  width: 100vw !important;
+  height: calc(100vh - var(--topbar-h)) !important;
+  transform: none !important;             /* neutralize RND's translate(...) */
 }
