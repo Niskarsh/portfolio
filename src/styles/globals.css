@@ -35,22 +35,22 @@ html,body{height:100%; background:var(--bg); color:var(--ink);}
 *::-webkit-scrollbar-thumb{background:var(--border);border-radius:8px}
 
 
-/* --- smoother geometry transitions for maximize/restore --- */
+/* smoother maximize/restore */
 .win-animate{
   transition:
-    transform 320ms cubic-bezier(.2,.8,.2,1),
-    width     320ms cubic-bezier(.2,.8,.2,1),
-    height    320ms cubic-bezier(.2,.8,.2,1),
-    opacity   320ms ease;
+    transform 420ms cubic-bezier(.2,.8,.2,1),
+    width     420ms cubic-bezier(.2,.8,.2,1),
+    height    420ms cubic-bezier(.2,.8,.2,1),
+    opacity   420ms ease;
 }
 
-/* --- minimize to the dock icon (uses CSS vars set by Window.tsx) --- */
+/* minimize to the targeted dock icon center (Window.tsx sets --min-x/--min-y) */
 @keyframes minimizeToDockIcon{
   0%   { transform: translate(0,0) scale(1);   opacity: 1; }
-  100% { transform: translate(var(--min-x,0px), var(--min-y,60vh)) scale(.82); opacity: 0; }
+  100% { transform: translate(var(--min-x,0px), var(--min-y,60vh)) scale(.80); opacity: 0; }
 }
 .win-minimizing{
-  animation: minimizeToDockIcon 420ms cubic-bezier(0.22, 1, 0.36, 1) forwards; /* 'ease-out'-like */ /* MDN easing */ 
+  animation: minimizeToDockIcon 480ms cubic-bezier(0.22,1,0.36,1) forwards;
 }
 
 /* --- dock hover 'magnification' (simple pop) --- */
