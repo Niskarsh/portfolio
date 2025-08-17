@@ -12,9 +12,7 @@ type Win = { id:number, kind:Kind, title:string, z:number, minimized:boolean, ma
 let _id=1
 
 export default function WindowManager(){
-  const [wins,setWins]=useState<Win[]>([
-    {id:_id++,kind:'projects',title:'Projects',z:1,minimized:false,maximized:false}
-  ])
+  const [wins,setWins]=useState<Win[]>([])
   const [zTop,setZTop]=useState(1)
 
   const spawn=(kind:Kind)=>{
@@ -30,7 +28,12 @@ export default function WindowManager(){
   // Dock click: restore latest minimized, else focus existing, else spawn
   const onDockClick=(kind:Kind)=>{
     const minimized = wins.filter(w=>w.kind===kind && w.minimized).sort((a,b)=>b.z-a.z)
-    if(minimized.length){ const id=minimized[0].id; setWins(ws=>ws.map(w=>w.id===id?{...w,minimized:false}:w)); focus(id); return }
+    if(minimized.length){
+      const id=minimized[0].id
+      setWins(ws=>ws.map(w=>w.id===id?{...w,minimized:false}:w))
+      focus(id)
+      return
+    }
     const existing = wins.filter(w=>w.kind===kind && !w.minimized).sort((a,b)=>b.z-a.z)
     if(existing.length){ focus(existing[0].id); return }
     spawn(kind)
@@ -44,8 +47,14 @@ export default function WindowManager(){
 
   const icon=(k:Kind)=>k==='projects'?<VscFiles/>:k==='work'?<MdWorkHistory/>:<MdPerson/>
   const render=(w:Win)=>{
-    const common={onClose:()=>close(w.id),onFocus:()=>focus(w.id),onMinimize:()=>minimize(w.id),onMaximize:()=>maximize(w.id),
-      z:w.z,title:w.title,maximized:w.maximized,minimized:w.minimized,icon:icon(w.kind)}
+    const common={
+      onClose:()=>close(w.id),
+      onFocus:()=>focus(w.id),
+      onMinimize:()=>minimize(w.id),
+      onMaximize:()=>maximize(w.id),
+      z:w.z,title:w.title,maximized:w.maximized,minimized:w.minimized,icon:icon(w.kind),
+      dockTargetId:`dock-btn-${w.kind}`,  // <-- important for minimize animation target
+    }
     switch(w.kind){
       case 'projects': return <Window key={w.id} {...common}><Projects username={process.env.NEXT_PUBLIC_GITHUB_USERNAME||'octocat'}/></Window>
       case 'work':     return <Window key={w.id} {...common}><Work/></Window>
