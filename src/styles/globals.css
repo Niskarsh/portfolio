@@ -56,3 +56,5 @@ html,body{height:100%; background:var(--bg); color:var(--ink);}
 /* --- dock hover 'magnification' (simple pop) --- */
 .dock-item{ transform: translateZ(0) scale(1); transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
 .dock-item:hover{ transform: translateZ(0) scale(1.12); } /* mac-like pop */  /* Apple Dock has magnification option */ 
+/* Dock button transforms are applied by JS every frame */
+.dock-button{ transform-origin: bottom center; will-change: transform; }
