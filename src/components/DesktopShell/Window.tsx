@@ -1,37 +1,114 @@
 'use client'
-import { useState } from 'react'
-import { Rnd } from 'react-rnd'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Rnd, RndDragCallback, RndResizeCallback } from 'react-rnd'
+
+const TOP = 48   // top bar height
+const LEFT = 88  // dock width
+const PAD = 16   // outer padding
+
+type Size = { w:number, h:number }
+type Pos  = { x:number, y:number }
 
 export default function Window(props:{
   title:string, z:number, onFocus:()=>void,
   onClose?:()=>void, onMinimize?:()=>void, onMaximize?:()=>void,
   default?:{x:number,y:number,w:number,h:number}, maximized?:boolean, minimized?:boolean,
   icon?:React.ReactNode, children:React.ReactNode
-}){
-  const {title,children,onClose,onFocus,onMinimize,onMaximize,z,icon,maximized,minimized}=props
-  const def=props.default??{x:200,y:160,w:820,h:560}
-  const [minAnim,setMinAnim]=useState(false)
-  const style=maximized?{zIndex:z,position:'fixed' as const,top:48,left:88,right:16,bottom:16}:{zIndex:z,position:'fixed' as const}
-  if(minimized) return null
+}) {
+  const { title, children, onClose, onFocus, onMinimize, onMaximize, z, icon } = props
+  const def = props.default ?? { x: 220, y: 160, w: 860, h: 600 }
+  const [pos, setPos] = useState<Pos>({ x: def.x, y: def.y })
+  const [size, setSize] = useState<Size>({ w: def.w, h: def.h })
+  const [maxed, setMaxed] = useState<boolean>(!!props.maximized)
+  const [minimized, setMinimized] = useState<boolean>(!!props.minimized)
+  const [minimizing, setMinimizing] = useState(false)
 
-  const onMinClick=()=>{
-    setMinAnim(true)
-    setTimeout(()=>{ setMinAnim(false); onMinimize && onMinimize() }, 180)
+  const rndRef = useRef<Rnd>(null)
+
+  // Compute full-bleed size inside the desktop when maximized
+  const maxTarget = useMemo(() => {
+    const W = typeof window !== 'undefined' ? window.innerWidth : 1280
+    const H = typeof window !== 'undefined' ? window.innerHeight : 800
+    return {
+      x: LEFT,
+      y: TOP,
+      w: Math.max(320, W - LEFT - PAD),
+      h: Math.max(240, H - TOP - PAD)
+    }
+  }, [])
+
+  // Keep maximized window fitted on resize
+  useEffect(() => {
+    if (!maxed) return
+    const onResize = () => {
+      const W = window.innerWidth, H = window.innerHeight
+      setPos({ x: LEFT, y: TOP })
+      setSize({ w: Math.max(320, W - LEFT - PAD), h: Math.max(240, H - TOP - PAD) })
+    }
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [maxed])
+
+  if (minimized) return null
+
+  const onDragStop: RndDragCallback = (_e, d) => setPos({ x: d.x, y: d.y })
+  const onResizeStop: RndResizeCallback = (_e, _dir, ref, _delta, position) => {
+    setSize({ w: ref.offsetWidth, h: ref.offsetHeight })
+    setPos({ x: position.x, y: position.y })
   }
-  const animStyle = minAnim
-    ? { transform:'translate(-60px, 280px) scale(0.85)', opacity:.0, transition:'transform .18s ease, opacity .18s ease' }
-    : { transform:'translate(0,0) scale(1)', opacity:1, transition:'transform .18s ease, opacity .18s ease' }
+
+  const handleMinimize = () => {
+    // play CSS keyframe, then actually hide
+    setMinimizing(true)
+  }
+
+  const handleMaximize = () => {
+    if (maxed) {
+      // restore
+      setMaxed(false)
+    } else {
+      // store current pos/size implicitly in state; then set maxed
+      setPos({ x: maxTarget.x, y: maxTarget.y })
+      setSize({ w: maxTarget.w, h: maxTarget.h })
+      setMaxed(true)
+    }
+    onMaximize?.()
+  }
+
+  const style = { zIndex: z, position: 'fixed' as const }
+  const animClass = minimizing ? 'win-minimizing' : ''
 
   return (
-    <Rnd default={{x:def.x,y:def.y,width:def.w,height:def.h}} bounds="window" dragHandleClassName="win-drag"
-      className="yaru-window overflow-hidden" style={{...style, ...animStyle}} onMouseDown={onFocus} enableResizing={!maximized}>
+    <Rnd
+      ref={rndRef}
+      position={maxed ? { x: maxTarget.x, y: maxTarget.y } : pos}
+      size={maxed ? { width: maxTarget.w, height: maxTarget.h } : { width: size.w, height: size.h }}
+      bounds="window"
+      dragHandleClassName="win-drag"
+      enableResizing={!maxed}
+      disableDragging={maxed}
+      onDragStop={onDragStop}
+      onResizeStop={onResizeStop}
+      className={`yaru-window overflow-hidden ${animClass}`}
+      style={style}
+      onMouseDown={onFocus}
+      onAnimationEnd={() => {
+        if (minimizing) {
+          setMinimizing(false)
+          setMinimized(true)
+          onMinimize?.()
+        }
+      }}
+    >
       <div className="window-header win-drag cursor-move">
         <div className="window-controls">
           <span className="btn-ctl btn-close" onClick={onClose}>×</span>
-          <span className="btn-ctl btn-min" onClick={onMinClick}>−</span>
-          <span className="btn-ctl btn-max" onClick={onMaximize}>□</span>
+          <span className="btn-ctl btn-min" onClick={handleMinimize}>−</span>
+          <span className="btn-ctl btn-max" onClick={handleMaximize}>□</span>
         </div>
-        <div className="window-title">{icon}<span>{title}</span></div><div className="w-16"/>
+        <div className="window-title">{icon}<span>{title}</span></div>
+        <div className="w-16" />
       </div>
       <div className="p-4 h-[calc(100%-44px)] overflow-auto">{children}</div>
     </Rnd>
