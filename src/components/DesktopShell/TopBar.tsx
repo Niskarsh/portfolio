@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { FaGithub, FaLinkedin, FaMedium } from 'react-icons/fa6'
+import { FaGithub, FaLinkedin, FaMedium, FaXTwitter, FaInstagram, FaYoutube } from 'react-icons/fa6'
 import { MdFileDownload, MdDarkMode, MdLightMode } from 'react-icons/md'
 import { MdBatteryChargingFull, MdBattery0Bar, MdBattery1Bar, MdBattery2Bar, MdBattery3Bar, MdBattery4Bar, MdBattery5Bar, MdBattery6Bar } from 'react-icons/md'
 import useBattery from './useBattery'
@@ -9,6 +9,9 @@ import { useTheme } from '@/components/Theme/ThemeProvider'
 const GH = process.env.NEXT_PUBLIC_GITHUB_URL   || 'https://github.com/your-handle'
 const LI = process.env.NEXT_PUBLIC_LINKEDIN_URL || 'https://www.linkedin.com/in/your-handle'
 const ME = process.env.NEXT_PUBLIC_MEDIUM_URL   || 'https://medium.com/@your-handle'
+const TW = process.env.NEXT_PUBLIC_TWITTER_URL  || 'https://x.com/your-handle'
+const IG = process.env.NEXT_PUBLIC_INSTAGRAM_URL|| 'https://instagram.com/your-handle'
+const YT = process.env.NEXT_PUBLIC_YOUTUBE_URL  || 'https://youtube.com/@your-handle'
 
 function clock(d: Date) {
   const mon = d.toLocaleString(undefined, { month: 'short' })
@@ -64,7 +67,7 @@ export default function TopBar({ onOpenChat }:{ onOpenChat: () => void }) {
         </button>
 
         {open && (
-          <div className="absolute right-0 top-12 w-[460px] rounded-2xl bg-[var(--panel)] border border-[var(--border)] shadow-yaru p-3 z-[60]">
+          <div className="absolute right-0 top-12 w-[480px] rounded-2xl bg-[var(--panel)] border border-[var(--border)] shadow-yaru p-3 z-[60]">
             {/* pointer arrow */}
             <div className="absolute -top-2 right-6 w-3 h-3 rotate-45 bg-[var(--panel)] border-l border-t border-[var(--border)]"></div>
 
@@ -80,20 +83,23 @@ export default function TopBar({ onOpenChat }:{ onOpenChat: () => void }) {
               <div className="text-xs px-2 py-1 rounded-full bg-white/10 border border-[var(--border)]">{theme}</div>
             </button>
 
-            {/* Social shortcuts (also listed here, plus room to add more later) */}
+            {/* Social shortcuts (now with X/Instagram/YouTube) */}
             <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel-2)] p-2 mb-2">
               <div className="px-2 pb-1 text-xs uppercase tracking-wider text-[var(--subtle)]">Social</div>
               <div className="grid grid-cols-3 gap-2 px-2 pb-2">
                 <a href={GH} target="_blank" className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-[var(--hover)]"><FaGithub/><span className="text-sm">GitHub</span></a>
                 <a href={LI} target="_blank" className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-[var(--hover)]"><FaLinkedin/><span className="text-sm">LinkedIn</span></a>
                 <a href={ME} target="_blank" className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-[var(--hover)]"><FaMedium/><span className="text-sm">Medium</span></a>
+                <a href={TW} target="_blank" className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-[var(--hover)]"><FaXTwitter/><span className="text-sm">X</span></a>
+                <a href={IG} target="_blank" className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-[var(--hover)]"><FaInstagram/><span className="text-sm">Instagram</span></a>
+                <a href={YT} target="_blank" className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-[var(--hover)]"><FaYoutube/><span className="text-sm">YouTube</span></a>
               </div>
             </div>
 
             {/* Actions */}
             <div className="grid grid-cols-2 gap-2">
               <a href="/Niskarsh_Resume.pdf" download className="flex items-center justify-between px-3 py-2 rounded-2xl border border-[var(--border)] bg-[var(--panel-2)] hover:bg-[var(--hover)]">
-                <div className="text-sm">Résumé</div><MdFileDownload/>
+                <div className="text-sm">Download Resume</div><MdFileDownload/>
               </a>
 
               {/* Ubuntu Orange CTA for brand coherence */}
