@@ -56,7 +56,7 @@ export default function TopBar({ onOpenChat }: { onOpenChat: () => void }) {
       <div className="flex items-center gap-3">
         {/* <span className="text-sm font-medium">Activities</span> */}
         <span className="text-sm text-[var(--subtle)]">Portfolio OS</span>
-        <span className="text-sm italic text-[var(--subtle)]">by Niskarsh</span>
+        <span className="text-sm italic text-[var(--subtle)]">by Niskarsh - Under Construction</span>
       </div>
 
       <div className="text-sm">{time}</div>
