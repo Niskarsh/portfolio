@@ -2,6 +2,7 @@ import '@/styles/globals.css'
 import type { Metadata } from 'next'
 import { Ubuntu } from 'next/font/google'
 import ThemeProvider from '@/components/Theme/ThemeProvider'
+import AnalyticsProvider from '@/components/Analytics/AnalyticsProvider'
 
 const ubuntu = Ubuntu({
   subsets: ['latin'],
@@ -19,7 +20,9 @@ export default function RootLayout({ children }:{ children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${ubuntu.variable} font-ubuntu`}>
+        <AnalyticsProvider>
         <ThemeProvider>{children}</ThemeProvider>
+        </AnalyticsProvider>
       </body>
     </html>
   )
