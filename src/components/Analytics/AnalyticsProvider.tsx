@@ -8,16 +8,13 @@ const wrapGtm = ({
 }>) => {
     let gtmId = process.env.NEXT_PUBLIC_GTM_ID;
     let gaId = process.env.NEXT_PUBLIC_GA_ID;
-    if (gtmId && gaId) {
-        return (
-            <>            
-            <GoogleTagManager gtmId={gtmId} />
-                {children}
-            <GoogleAnalytics gaId={gaId} />
-            </>
-        );
-    }
-    return <>{children}</>;
+    return (
+        <>  
+        {gtmId ? <GoogleTagManager gtmId={gtmId} />: null}
+            {children}
+        {gaId ? <GoogleAnalytics gaId={gaId} />: null}        
+        </>
+    );
 };
 
 export default function AnalyticsProvider({
