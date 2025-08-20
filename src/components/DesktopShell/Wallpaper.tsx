@@ -3,7 +3,7 @@ import Image from 'next/image'
 
 export default function Wallpaper() {
   return (
-    <div className="fixed inset-0 -z-10">
+    <div className="fixed inset-0 z-1">
       {/* Full-bleed image */}
       <div className="absolute inset-0">
         <Image
