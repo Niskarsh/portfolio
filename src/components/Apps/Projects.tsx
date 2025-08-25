@@ -2,9 +2,9 @@ import Heatmap from './parts/Heatmap'
 
 export default function Projects({username}:{username:string}){
   const items=[
-    { title: 'Proof-of-Skill: scalable evaluation', impact: '↓11s → 3s via materialized views' },
-    { title: 'Video ingestion pipeline', impact: 'Serverless uploads, MediaConvert automation' },
-    { title: 'Recruiter unlock flow', impact: '+18% unlock rate after UX rewrite' },
+    { title: 'Sales Skill Evaluator  (OpenAI Realtime: gpt-4o-realtime-preview-2024-12-17) ', impact: 'https://sales-ai-pilot.vercel.app' },
+    { title: 'Portfolio (Ubuntu 22.04 flavored Portfolio) - Still in work', impact: 'https://niskarsh.vercel.app/' },
+    // { title: 'Video ingestion pipeline', impact: 'Uploads via IVS, MediaConvert automation' },
   ]
   return (
     <div className="space-y-6">
