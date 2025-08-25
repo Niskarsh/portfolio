@@ -3,11 +3,11 @@ import Image from 'next/image'
 
 export default function Wallpaper() {
   return (
-    <div className="fixed inset-0 z-1">
+    <div className="fixed inset-0 z 1">
       {/* Full-bleed image */}
       <div className="absolute inset-0">
         <Image
-          src="/me.jpg"          // make sure this exists under /public
+          src="/ubuntu.jpg"          // make sure this exists under /public
           alt="Background"
           fill                           // expands to parent size
           priority
