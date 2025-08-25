@@ -1,13 +1,15 @@
+// @/components/DesktopShell/WindowManager.tsx
 'use client'
 import { useMemo, useRef, useState } from 'react'
 import Window from './Window'
 import Projects from '@/components/Apps/Projects'
 import Work from '@/components/Apps/Work'
 import About from '@/components/Apps/About'
+import Chat from '@/components/Apps/Chat'              // ← NEW
 import { VscFiles } from 'react-icons/vsc'
-import { MdWorkHistory, MdPerson } from 'react-icons/md'
+import { MdWorkHistory, MdPerson, MdChatBubble } from 'react-icons/md' // ← NEW
 
-export type Kind = 'projects' | 'work' | 'about'
+export type Kind = 'projects' | 'work' | 'about' | 'chat'               // ← NEW
 
 type Win = {
   id: number
@@ -24,15 +26,19 @@ export default function WindowManager() {
   const [wins, setWins] = useState<Win[]>([])
   const [zTop, setZTop] = useState(1)
 
-  // Windows register their imperative minimize fn here (WAAPI)
   const minimizers = useRef<Map<number, (dockEl: HTMLElement) => void>>(new Map())
 
   const spawn = (kind: Kind) => {
-    const title = { projects: 'Projects', work: 'Work Experience', about: 'About Me' }[kind]
+    const titleMap: Record<Kind, string> = {
+      projects: 'Projects',
+      work: 'Work Experience',
+      about: 'About Me',
+      chat: 'AI Chat',                             // ← NEW
+    }
     setWins(ws => {
       const zNew = zTop + 1
       setZTop(zNew)
-      return [...ws, { id: _id++, kind, title, z: zNew, minimized: false, maximized: false }]
+      return [...ws, { id: _id++, kind, title: titleMap[kind], z: zNew, minimized: false, maximized: false }]
     })
   }
 
@@ -53,7 +59,6 @@ export default function WindowManager() {
   // ---- Dock click toggle (RESTORE → MINIMIZE → SPAWN) ----
   const onDockClick = (kind: Kind) => {
     setWins(prev => {
-      // 1) If any minimized → restore the most recent one and bring to front
       const minimizedList = prev.filter(w => w.kind === kind && w.minimized).sort((a, b) => b.z - a.z)
       if (minimizedList.length) {
         const id = minimizedList[0].id
@@ -61,23 +66,23 @@ export default function WindowManager() {
         setZTop(zNew)
         return prev.map(w => (w.id === id ? { ...w, minimized: false, z: zNew } : w))
       }
-
-      // 2) Else, if any visible → minimize the topmost via its registered WAAPI function
       const visibles = prev.filter(w => w.kind === kind && !w.minimized).sort((a, b) => b.z - a.z)
       if (visibles.length) {
         const id = visibles[0].id
         const iconEl = document.getElementById(`dock-btn-${kind}`) as HTMLElement | null
         const fn = minimizers.current.get(id)
         if (iconEl && fn) fn(iconEl)
-        // Do NOT flip state here; the window will set minimized:true on animation end
         return prev
       }
-
-      // 3) Else spawn a new window
       const zNew = zTop + 1
       setZTop(zNew)
-      const title = { projects: 'Projects', work: 'Work Experience', about: 'About Me' }[kind]
-      return [...prev, { id: ++_id, kind, title, z: zNew, minimized: false, maximized: false }]
+      const titleMap: Record<Kind, string> = {
+        projects: 'Projects',
+        work: 'Work Experience',
+        about: 'About Me',
+        chat: 'AI Chat',
+      }
+      return [...prev, { id: ++_id, kind, title: titleMap[kind], z: zNew, minimized: false, maximized: false }]
     })
   }
 
@@ -86,11 +91,16 @@ export default function WindowManager() {
       projects: wins.filter(w => w.kind === 'projects').length,
       work: wins.filter(w => w.kind === 'work').length,
       about: wins.filter(w => w.kind === 'about').length,
+      chat: wins.filter(w => w.kind === 'chat').length,     // ← NEW
     }),
     [wins],
   )
 
-  const icon = (k: Kind) => (k === 'projects' ? <VscFiles /> : k === 'work' ? <MdWorkHistory /> : <MdPerson />)
+  const icon = (k: Kind) =>
+    k === 'projects' ? <VscFiles /> :
+    k === 'work'     ? <MdWorkHistory /> :
+    k === 'about'    ? <MdPerson /> :
+                       <MdChatBubble />                     // ← NEW
 
   const render = (w: Win) => {
     const common = {
@@ -102,7 +112,7 @@ export default function WindowManager() {
       maximized: w.maximized,
       onFocus: () => focus(w.id),
       onClose: () => close(w.id),
-      onMinimize: () => setMinimized(w.id, true), // called after WAAPI finishes
+      onMinimize: () => setMinimized(w.id, true),
       onRestore: () => setMinimized(w.id, false),
       onMaximize: () => toggleMax(w.id),
       dockTargetId: `dock-btn-${w.kind}`,
@@ -111,24 +121,10 @@ export default function WindowManager() {
       },
     }
     switch (w.kind) {
-      case 'projects':
-        return (
-          <Window key={w.id} {...common}>
-            <Projects username={process.env.NEXT_PUBLIC_GITHUB_USERNAME || 'octocat'} />
-          </Window>
-        )
-      case 'work':
-        return (
-          <Window key={w.id} {...common}>
-            <Work />
-          </Window>
-        )
-      case 'about':
-        return (
-          <Window key={w.id} {...common}>
-            <About />
-          </Window>
-        )
+      case 'projects': return <Window key={w.id} {...common}><Projects username={process.env.NEXT_PUBLIC_GITHUB_USERNAME || 'octocat'} /></Window>
+      case 'work':     return <Window key={w.id} {...common}><Work /></Window>
+      case 'about':    return <Window key={w.id} {...common}><About /></Window>
+      case 'chat':     return <Window key={w.id} {...common}><Chat /></Window>   // ← NEW
     }
   }
 

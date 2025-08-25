@@ -1,3 +1,4 @@
+// app/page.tsx
 'use client'
 import Wallpaper from '@/components/DesktopShell/Wallpaper'
 import TopBar from '@/components/DesktopShell/TopBar'
@@ -9,13 +10,8 @@ export default function Page(){
   return (
     <main className="relative h-dvh w-dvw overflow-hidden">
       <Wallpaper/>
-      <TopBar onOpenChat={() => wm.onDockClick('about')} />
-      <Dock
-        counts={wm.counts}
-        // spawn={() => {}}
-        onDockClick={wm.onDockClick}
-        // mediumUrl={process.env.NEXT_PUBLIC_MEDIUM_URL || 'https://medium.com/@your-handle'}
-      />
+      <TopBar onOpenChat={() => wm.onDockClick('chat')} />  {/* ← change 'about' → 'chat' */}
+      <Dock counts={wm.counts} onDockClick={wm.onDockClick} />
       {wm.wins.map(w => wm.render(w))}
     </main>
   )
